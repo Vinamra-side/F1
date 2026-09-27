@@ -345,3 +345,35 @@ export const HANDLING_FEEDBACK_OPTIONS: HandlingFeedbackItem[] = [
     symptom: "Wings set too high inducing unnecessary aerodynamic drag"
   }
 ];
+
+export interface DriverRosterItem {
+  id: string;
+  name: string;
+  number: number;
+  team: string;
+  teamColor: string;
+}
+
+export const F1_OFFICIAL_DRIVERS: DriverRosterItem[] = [
+  { id: "hamilton", name: "Lewis Hamilton", number: 44, team: "Mercedes-AMG Petronas", teamColor: "#00D2BE" },
+  { id: "bottas", name: "Valtteri Bottas", number: 77, team: "Mercedes-AMG Petronas", teamColor: "#00D2BE" },
+  { id: "verstappen", name: "Max Verstappen", number: 33, team: "Red Bull Racing", teamColor: "#0600EF" },
+  { id: "albon", name: "Alexander Albon", number: 23, team: "Red Bull Racing", teamColor: "#0600EF" },
+  { id: "leclerc", name: "Charles Leclerc", number: 16, team: "Scuderia Ferrari", teamColor: "#DC0000" },
+  { id: "vettel", name: "Sebastian Vettel", number: 5, team: "Scuderia Ferrari", teamColor: "#DC0000" },
+  { id: "norris", name: "Lando Norris", number: 4, team: "McLaren F1 Team", teamColor: "#FF8700" },
+  { id: "sainz", name: "Carlos Sainz", number: 55, team: "McLaren F1 Team", teamColor: "#FF8700" },
+  { id: "ricciardo", name: "Daniel Ricciardo", number: 3, team: "Renault DP World", teamColor: "#FFF500" },
+  { id: "ocon", name: "Esteban Ocon", number: 31, team: "Renault DP World", teamColor: "#FFF500" },
+  { id: "gasly", name: "Pierre Gasly", number: 10, team: "Scuderia AlphaTauri", teamColor: "#FFFFFF" },
+  { id: "kvyat", name: "Daniil Kvyat", number: 26, team: "Scuderia AlphaTauri", teamColor: "#FFFFFF" },
+  { id: "perez", name: "Sergio Perez", number: 11, team: "Racing Point F1 Team", teamColor: "#F596C8" },
+  { id: "stroll", name: "Lance Stroll", number: 18, team: "Racing Point F1 Team", teamColor: "#F596C8" },
+  { id: "raikkonen", name: "Kimi Räikkönen", number: 7, team: "Alfa Romeo Racing", teamColor: "#9B0000" },
+  { id: "giovinazzi", name: "Antonio Giovinazzi", number: 99, team: "Alfa Romeo Racing", teamColor: "#9B0000" },
+  { id: "grosjean", name: "Romain Grosjean", number: 8, team: "Haas F1 Team", teamColor: "#787878" },
+  { id: "magnussen", name: "Kevin Magnussen", number: 20, team: "Haas F1 Team", teamColor: "#787878" },
+  { id: "russell", name: "George Russell", number: 63, team: "Williams Racing", teamColor: "#0082FA" },
+  { id: "latifi", name: "Nicholas Latifi", number: 6, team: "Williams Racing", teamColor: "#0082FA" },
+];
+

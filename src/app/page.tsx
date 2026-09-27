@@ -122,13 +122,17 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [activeSource, lanUrl]);
 
-  const handleSaveDriverName = async (name: string) => {
-    setSnapshot((prev) => ({ ...prev, driverName: name }));
+  const handleSaveDriverName = async (name: string, carIndex?: number) => {
+    setSnapshot((prev) => ({
+      ...prev,
+      driverName: name,
+      ...(carIndex !== undefined ? { playerCarIndex: carIndex } : {}),
+    }));
     try {
       await fetch("/api/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ driverName: name }),
+        body: JSON.stringify({ driverName: name, carIndex }),
       });
     } catch {
       // Ignore if offline
@@ -267,6 +271,34 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+        {/* Active Driver Quick Selection Banner */}
+        <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-cyan-950 border border-cyan-800 flex items-center justify-center font-black text-cyan-400 font-mono text-base">
+              {snapshot.driverName ? snapshot.driverName[0].toUpperCase() : "P"}
+            </div>
+            <div>
+              <div className="text-[10px] font-mono text-neutral-500 uppercase tracking-wider">
+                Telemetry Focused On Driver
+              </div>
+              <div className="text-sm font-mono font-bold text-white flex items-center gap-2">
+                <span>{snapshot.driverName}</span>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-neutral-900 border border-neutral-700 text-neutral-300 font-normal">
+                  Car Index: {snapshot.participants?.find((p) => p.name === snapshot.driverName)?.carIndex ?? 0}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <DriverSelector
+              currentDriverName={snapshot.driverName}
+              onSaveDriverName={handleSaveDriverName}
+              participants={snapshot.participants || []}
+            />
+          </div>
+        </div>
+
         {/* TAB 1: AI Race Engineer & Setups */}
         {activeTab === "engineer" && (
           <div className="space-y-6">

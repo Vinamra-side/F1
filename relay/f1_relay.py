@@ -147,6 +147,24 @@ class TelemetryState:
                         self.driver_name = p["name"]
                         break
 
+    def set_target_driver(self, name: str, car_index: Optional[int] = None):
+        with self.lock:
+            if not name:
+                return
+            if self.target_driver_name != name:
+                print(f"\n🔄 [Driver Switch] Target driver switched from '{self.driver_name}' to '{name}'")
+            self.target_driver_name = name
+            self.driver_name = name
+            if car_index is not None:
+                self.matched_car_index = car_index
+            else:
+                normalized = name.strip().lower()
+                for p in self.participants:
+                    if normalized in p["name"].lower():
+                        self.matched_car_index = p["carIndex"]
+                        self.driver_name = p["name"]
+                        break
+
     def get_effective_car_index(self, header_player_idx: int) -> int:
         with self.lock:
             return self.matched_car_index if self.matched_car_index is not None else header_player_idx
@@ -322,6 +340,24 @@ class LocalHttpServer:
                     self.send_response(404)
                     self.end_headers()
 
+            def do_POST(self):
+                content_len = int(self.headers.get("Content-Length", 0))
+                post_body = self.rfile.read(content_len) if content_len > 0 else b"{}"
+                try:
+                    data = json.loads(post_body.decode("utf-8"))
+                    driver_name = data.get("driverName") or data.get("name")
+                    car_index = data.get("carIndex")
+                    if driver_name:
+                        state_ref.set_target_driver(driver_name, car_index)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(b'{"success":true}')
+                except Exception as e:
+                    self.send_response(400)
+                    self.end_headers()
+
             def do_OPTIONS(self):
                 self.send_response(200)
                 self.send_header("Access-Control-Allow-Origin", "*")
@@ -368,6 +404,13 @@ class CloudSyncWorker:
                 )
                 with urlopen(req, timeout=1.5) as resp:
                     self.last_status_code = resp.status
+                    resp_data = resp.read()
+                    if resp_data:
+                        body = json.loads(resp_data.decode("utf-8"))
+                        remote_driver = body.get("targetDriverName")
+                        remote_car_idx = body.get("targetCarIndex")
+                        if remote_driver and remote_driver != self.state.driver_name:
+                            self.state.set_target_driver(remote_driver, remote_car_idx)
             except URLError as e:
                 # Fail gracefully if internet or vercel cold start
                 self.last_status_code = getattr(e, "code", "ERR")
