@@ -1,0 +1,20 @@
+{
+  "monza": {
+    "name": "Monza",
+    "type": "high-speed",
+    "longStraights": 2,
+    "averageCornerSpeed": 120
+  },
+  "silverstone": {
+    "name": "Silverstone",
+    "type": "mixed",
+    "longStraights": 1,
+    "averageCornerSpeed": 100
+  },
+  "spa": {
+    "name": "Spa-Francorchamps",
+    "type": "high-downforce",
+    "longStraights": 1,
+    "averageCornerSpeed": 110
+  }
+}
