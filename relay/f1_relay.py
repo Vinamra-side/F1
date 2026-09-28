@@ -14,6 +14,7 @@ import time
 import sys
 import threading
 import argparse
+from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.request import Request, urlopen
 from urllib.error import URLError
@@ -28,7 +29,6 @@ from packet_parser import (
     parse_setup_packet,
     parse_car_telemetry_packet,
     parse_car_status_packet,
-    parse_car_damage_packet,
 )
 
 class TelemetryState:
@@ -37,12 +37,14 @@ class TelemetryState:
         self.target_driver_name = target_driver_name
         self.matched_car_index: Optional[int] = None
         self.driver_name = target_driver_name or "Player"
+        self.last_packet_timestamp = 0.0
         
         # Latest packet states
         self.session: Dict[str, Any] = {
             "trackName": "Waiting for track...",
             "weather": "Unknown",
-            "sessionType": "Practice",
+            "sessionType": "No live session",
+            "sessionTypeId": 0,
             "airTemperature": 25,
             "trackTemperature": 32,
             "totalLaps": 0,
@@ -78,6 +80,7 @@ class TelemetryState:
         }
         self.status: Dict[str, Any] = {
             "tyreCompound": "Soft",
+            "fuelMix": 1,
             "fuelInTank": 25.0,
             "fuelRemainingLaps": 1.2,
             "ersStoreEnergy": 4000000,
@@ -293,7 +296,7 @@ class TelemetryState:
                     "rearLockingEvents": self.rear_locking_events,
                     "kerbBottomingEvents": self.kerb_bottoming_events,
                 },
-                "timestamp": time.time(),
+                "timestamp": self.last_packet_timestamp,
             }
 
 def format_lap_time(seconds: float) -> str:
@@ -417,6 +420,34 @@ class CloudSyncWorker:
             except Exception:
                 pass
 
+class TelemetryRecorder:
+    """Writes periodic telemetry snapshots to a local NDJSON session file."""
+
+    def __init__(self, state: TelemetryState, data_dir: str, save_hz: float = 5.0):
+        if save_hz <= 0:
+            raise ValueError("save_hz must be greater than zero")
+
+        self.state = state
+        self.interval = 1.0 / save_hz
+        self.last_write = 0.0
+        self.data_dir = Path(data_dir)
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"f1-telemetry-{time.strftime('%Y%m%d-%H%M%S')}.ndjson"
+        self.file_path = self.data_dir / filename
+        self.file = self.file_path.open("a", encoding="utf-8", buffering=1)
+
+    def maybe_write(self, now: float) -> None:
+        if now - self.last_write < self.interval:
+            return
+
+        json.dump(self.state.snapshot(), self.file, separators=(",", ":"))
+        self.file.write("\n")
+        self.file.flush()
+        self.last_write = now
+
+    def close(self) -> None:
+        self.file.close()
+
 def get_lan_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -430,6 +461,12 @@ def get_lan_ip():
 def run_f1_relay(args):
     state = TelemetryState(target_driver_name=args.driver_name)
     lan_ip = get_lan_ip()
+
+    try:
+        recorder = TelemetryRecorder(state, data_dir=args.data_dir, save_hz=args.save_hz)
+    except (OSError, ValueError) as error:
+        print(f"❌ Cannot save telemetry to {args.data_dir}: {error}")
+        return
     
     print("=" * 70)
     print(" 🏎️  F1 2020 RACE ENGINEER & TELEMETRY RELAY BRIDGE")
@@ -442,6 +479,7 @@ def run_f1_relay(args):
         print(f"🌐 Cloud Vercel Target  : {args.cloud_url}")
     else:
         print("🌐 Cloud Vercel Target  : [Not configured - pass --cloud-url to sync]")
+    print(f"💾 Session Data File    : {recorder.file_path}")
     print("-" * 70)
     print("💡 To connect from your other laptop:")
     print(f"   Option A (LAN): Enter 'http://{lan_ip}:{args.http_port}' in the web app settings.")
@@ -465,6 +503,8 @@ def run_f1_relay(args):
     except Exception as e:
         print(f"❌ Failed to bind UDP socket on {args.bind_ip}:{args.udp_port}: {e}")
         print("   Make sure no other telemetry application is using port 20777.")
+        recorder.close()
+        sock.close()
         return
     
     packet_count = 0
@@ -477,6 +517,7 @@ def run_f1_relay(args):
                 continue
             
             packet_count += 1
+            packet_processed = False
             try:
                 header = parse_header(data)
                 packet_id = header["packetId"]
@@ -493,33 +534,49 @@ def run_f1_relay(args):
                 if packet_id == 0:
                     motion = parse_motion_packet(data, header)
                     state.on_motion(motion)
+                    packet_processed = True
                 elif packet_id == 1:
                     session = parse_session_packet(data, header)
                     with state.lock:
                         state.session.update(session)
+                    packet_processed = True
                 elif packet_id == 2:
                     lap = parse_lap_packet(data, header)
                     state.on_lap_data(lap)
+                    packet_processed = True
+                elif packet_id == 4:
+                    packet_processed = True
                 elif packet_id == 5:
                     setup = parse_setup_packet(data, header)
                     with state.lock:
                         state.setup.update(setup)
+                    packet_processed = True
                 elif packet_id == 6:
                     telemetry = parse_car_telemetry_packet(data, header)
                     state.on_telemetry(telemetry)
+                    packet_processed = True
                 elif packet_id == 7:
                     status = parse_car_status_packet(data, header)
+                    damage = status.pop("damage", None)
                     with state.lock:
                         state.status.update(status)
-                elif packet_id == 10:
-                    damage = parse_car_damage_packet(data, header)
-                    with state.lock:
-                        state.damage.update(damage)
-            except Exception as parse_err:
+                        if damage:
+                            state.damage.update(damage)
+                    packet_processed = True
+            except Exception:
                 pass
+
+            now = time.time()
+            if packet_processed:
+                with state.lock:
+                    state.last_packet_timestamp = now
+                try:
+                    recorder.maybe_write(now)
+                except OSError as error:
+                    print(f"\n❌ Failed to save telemetry to {recorder.file_path}: {error}")
+                    break
             
             # Print live CLI dashboard line every 1 second
-            now = time.time()
             if now - last_print_time >= 1.0:
                 last_print_time = now
                 s = state.snapshot()
@@ -540,6 +597,7 @@ def run_f1_relay(args):
         print("\n🛑 Telemetry relay stopped by user.")
     finally:
         sock.close()
+        recorder.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="F1 2020 UDP Telemetry Relay to LAN and Vercel Cloud")
@@ -549,5 +607,7 @@ if __name__ == "__main__":
     parser.add_argument("--driver-name", type=str, default=None, help="Player / Driver name to track and match")
     parser.add_argument("--cloud-url", type=str, default=None, help="Vercel cloud deployment URL (e.g. https://my-f1-app.vercel.app)")
     parser.add_argument("--cloud-hz", type=float, default=5.0, help="Cloud sync rate in Hz (default: 5.0)")
+    parser.add_argument("--data-dir", type=str, default=r"D:\F1Telemetry", help=r"Directory for saved telemetry (default: D:\F1Telemetry)")
+    parser.add_argument("--save-hz", type=float, default=5.0, help="Disk save rate in Hz (default: 5.0)")
     args = parser.parse_args()
     run_f1_relay(args)

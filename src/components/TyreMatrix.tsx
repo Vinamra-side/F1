@@ -2,7 +2,7 @@
 
 import React from "react";
 import { TyreQuad } from "@/lib/types";
-import { Thermometer, Disc, Activity, AlertTriangle } from "lucide-react";
+import { Disc, Activity } from "lucide-react";
 
 interface TyreMatrixProps {
   innerTemps: TyreQuad<number>;
@@ -37,7 +37,6 @@ export function TyreMatrix({
   const renderTyreCorner = (
     key: "fl" | "fr" | "rl" | "rr",
     label: string,
-    position: "left" | "right"
   ) => {
     const inner = innerTemps[key] || 100;
     const surface = surfaceTemps[key] || 100;
@@ -117,12 +116,12 @@ export function TyreMatrix({
       {/* 2x2 Car Wheel Diagram */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Front Axle */}
-        {renderTyreCorner("fl", "FRONT LEFT (FL)", "left")}
-        {renderTyreCorner("fr", "FRONT RIGHT (FR)", "right")}
+        {renderTyreCorner("fl", "FRONT LEFT (FL)")}
+        {renderTyreCorner("fr", "FRONT RIGHT (FR)")}
 
         {/* Rear Axle */}
-        {renderTyreCorner("rl", "REAR LEFT (RL)", "left")}
-        {renderTyreCorner("rr", "REAR RIGHT (RR)", "right")}
+        {renderTyreCorner("rl", "REAR LEFT (RL)")}
+        {renderTyreCorner("rr", "REAR RIGHT (RR)")}
       </div>
     </div>
   );

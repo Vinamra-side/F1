@@ -1,17 +1,16 @@
 "use client";
 
 import React from "react";
-import { LiveTelemetry, LiveMotion, LiveStatus, LiveLapData } from "@/lib/types";
-import { Zap, Gauge, Flame, Wind, Navigation } from "lucide-react";
+import { LiveTelemetry, LiveMotion, LiveStatus } from "@/lib/types";
+import { Zap, Gauge, Flame, Wind } from "lucide-react";
 
 interface LivePitWallProps {
   telemetry: LiveTelemetry;
   motion: LiveMotion;
   status: LiveStatus;
-  lapData: LiveLapData;
 }
 
-export function LivePitWall({ telemetry, motion, status, lapData }: LivePitWallProps) {
+export function LivePitWall({ telemetry, motion, status }: LivePitWallProps) {
   const speed = telemetry.speed || 0;
   const gear = telemetry.gear;
   const rpm = telemetry.engineRPM || 0;
@@ -124,18 +123,16 @@ export function LivePitWall({ telemetry, motion, status, lapData }: LivePitWallP
           </div>
         </div>
 
-        {/* Fuel Remaining & Delta */}
+        {/* Fuel remaining */}
         <div className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <span className="text-neutral-500 text-xs font-mono uppercase tracking-wider flex items-center gap-1">
-              <Gauge className="w-3.5 h-3.5 text-emerald-400" /> Fuel Delta
+              <Gauge className="w-3.5 h-3.5 text-emerald-400" /> Fuel Range
             </span>
             <span
-              className={`font-mono text-sm font-bold ${
-                fuelLaps >= 0 ? "text-emerald-400" : "text-red-400"
-              }`}
+              className="font-mono text-sm font-bold text-emerald-400"
             >
-              {fuelLaps >= 0 ? `+${fuelLaps.toFixed(2)}` : fuelLaps.toFixed(2)} Laps
+              {fuelLaps.toFixed(1)} laps
             </span>
           </div>
           <div className="text-2xl font-mono font-bold text-white my-1">

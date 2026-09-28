@@ -53,7 +53,6 @@ def simulate_track_lap(target_host: str = "127.0.0.1", target_port: int = 20777,
     setup_car_dummy = b'\x00' * 49
     telemetry_car_dummy = b'\x00' * 58
     status_car_dummy = b'\x00' * 60
-    damage_car_dummy = b'\x00' * 26
 
     # Setup values (Baseline Bahrain Setup)
     # frontWing=7, rearWing=6, onThrottle=70, offThrottle=55, frontCamber=-2.8, rearCamber=-1.5,
@@ -146,7 +145,7 @@ def simulate_track_lap(target_host: str = "127.0.0.1", target_port: int = 20777,
                 last_session_time = session_time
                 header = make_header(1, session_time, frame_id, 0)
                 # weather=0 (clear), trackTemp=38, airTemp=28, totalLaps=total_laps, trackLength=5412, sessionType=10 (Race), trackId=3 (Bahrain)
-                session_data = struct.pack("<BbBbhBb", 0, 38, 28, total_laps, 5412, 10, 3)
+                session_data = struct.pack("<BbbBHBb", 0, 38, 28, total_laps, 5412, 10, 3)
                 sock.sendto(header + session_data, (target_host, target_port))
 
             # --- 3. Car Setup Packet (every 3 seconds) ---
@@ -199,32 +198,19 @@ def simulate_track_lap(target_host: str = "127.0.0.1", target_port: int = 20777,
                 # tc=0, abs=0, fuelMix=1, brakeBias=56, pitLimiter=0, fuelTank, fuelCap=110, fuelRem=2.1, maxRPM=13500, idleRPM=4000, maxGears=8, drsAllowed=1
                 # visualCompound=16 (soft), tyreAge=lap_num, ersStore=3200000, deployMode=2 (hotlap)
                 status_payload = struct.pack(
-                    "<BBBBBfffHHBBHBBBb f B fff",
+                    "<5B3f2H2BH4B3B4B6BbfB3f",
                     0, 0, 1, 56, 0,
                     fuel_tank, 110.0, 1.4,
                     13500, 4000, 8, 1, 0,
-                    16, 16, lap_num, 0,
+                    int(tyre_wear["rl"]), int(tyre_wear["rr"]), int(tyre_wear["fl"]), int(tyre_wear["fr"]),
+                    16, 16, lap_num,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0,
                     3200000.0, 2, 500.0, 1200.0, 800.0
                 )
                 sock.sendto(header + status_payload + (status_car_dummy * 21), (target_host, target_port))
 
-            # --- 7. Car Damage Packet (5Hz) ---
-            if frame_id % 4 == 0:
-                header = make_header(10, session_time, frame_id, 0)
-                # tyresWear [RL, RR, FL, FR], wear deltas
-                wear_rl = int(tyre_wear["rl"] + (lap_num * 3.2))
-                wear_rr = int(tyre_wear["rr"] + (lap_num * 3.2))
-                wear_fl = int(tyre_wear["fl"] + (lap_num * 4.5)) # Front left takes more wear at Bahrain T9/T10
-                wear_fr = int(tyre_wear["fr"] + (lap_num * 3.8))
-                damage_payload = struct.pack(
-                    "<4B4B4BBBBBBBBBBBBBB",
-                    wear_rl, wear_rr, wear_fl, wear_fr,
-                    0, 0, 0, 0, 0, 0, 0, 0,
-                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-                )
-                sock.sendto(header + damage_payload + (damage_car_dummy * 21), (target_host, target_port))
-
-            # --- 8. Lap Data Packet (10Hz) ---
+            # --- 7. Lap Data Packet (10Hz) ---
             if frame_id % 2 == 0:
                 header = make_header(2, session_time, frame_id, 0)
                 # S1 is ~28.5s, S2 is ~39.2s, S3 is ~23.8s
@@ -253,6 +239,7 @@ def simulate_track_lap(target_host: str = "127.0.0.1", target_port: int = 20777,
             if lap_time >= target_lap_duration:
                 # Complete lap!
                 fuel_tank -= 1.82
+                tyre_wear = {corner: wear + 3.2 for corner, wear in tyre_wear.items()}
                 print(f"🏁 Lap {lap_num} Completed! Time: 1:{target_lap_duration-60:05.3f} | Fuel: {fuel_tank:.1f}kg")
                 lap_num += 1
                 lap_time = 0.0

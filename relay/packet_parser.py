@@ -1,7 +1,7 @@
 """
 F1 2020 UDP Telemetry Binary Packet Parser
 Parses UDP packets broadcasted by Codemasters F1 2020 on port 20777.
-Supports Header, Motion, Session, Lap Data, Participants, Car Setup, Car Telemetry, Car Status, and Car Damage.
+Supports Header, Motion, Session, Lap Data, Participants, Car Setup, Car Telemetry, and Car Status.
 """
 
 import struct
@@ -21,7 +21,6 @@ PACKET_IDS = {
     7: "CAR_STATUS",
     8: "FINAL_CLASSIFICATION",
     9: "LOBBY_INFO",
-    10: "CAR_DAMAGE",
 }
 
 TRACK_NAMES = {
@@ -161,7 +160,7 @@ def parse_motion_packet(data: bytes, header: Dict[str, Any]) -> Dict[str, Any]:
 
 def parse_session_packet(data: bytes, header: Dict[str, Any]) -> Dict[str, Any]:
     # uint8 weather, int8 trackTemp, int8 airTemp, uint8 totalLaps, uint16 trackLength, uint8 sessionType, int8 trackId
-    session_format = "<BbBbhBb"
+    session_format = "<BbbBHBb"
     offset = HEADER_SIZE
     if len(data) < offset + struct.calcsize(session_format):
         return {}
@@ -388,9 +387,10 @@ def parse_car_status_packet(data: bytes, header: Dict[str, Any]) -> Dict[str, An
     # uint8 tc, uint8 abs, uint8 fuelMix, uint8 frontBrakeBias, uint8 pitLimiter,
     # float fuelInTank, float fuelCapacity, float fuelRemainingLaps,
     # uint16 maxRPM, uint16 idleRPM, uint8 maxGears, uint8 drsAllowed, uint16 drsDistance,
-    # uint8 actualCompound, uint8 visualCompound, uint8 tyresAgeLaps, int8 fiaFlags,
+    # uint8 tyresWear[4], uint8 actualCompound, uint8 visualCompound, uint8 tyresAgeLaps,
+    # uint8 tyresDamage[4], wing/DRS/engine/gearbox damage, int8 fiaFlags,
     # float ersStoreEnergy, uint8 ersDeployMode, float ersHarvestedMGUK, float ersHarvestedMGUH, float ersDeployed
-    status_format = "<BBBBBfffHHBBHBBBb f B fff"
+    status_format = "<5B3f2H2BH4B3B4B6BbfB3f"
     s_size = struct.calcsize(status_format) # 60 bytes
     player_idx = header["playerCarIndex"]
     offset = HEADER_SIZE + (player_idx * s_size)
@@ -398,7 +398,7 @@ def parse_car_status_packet(data: bytes, header: Dict[str, Any]) -> Dict[str, An
         return {}
     
     vals = struct.unpack_from(status_format, data, offset)
-    compound_id = vals[14]
+    compound_id = vals[18]
     
     return {
         "tractionControl": vals[0],
@@ -413,36 +413,15 @@ def parse_car_status_packet(data: bytes, header: Dict[str, Any]) -> Dict[str, An
         "idleRPM": vals[9],
         "drsAllowed": bool(vals[11]),
         "tyreCompound": TYRE_COMPOUNDS.get(compound_id, "Dry"),
-        "tyresAgeLaps": vals[15],
-        "ersStoreEnergy": round(vals[17], 0), # Max 4,000,000 Joules
-        "ersDeployMode": vals[18],
-    }
-
-def parse_car_damage_packet(data: bytes, header: Dict[str, Any]) -> Dict[str, Any]:
-    # uint8 tyresWear[4] (RL, RR, FL, FR), uint8 tyresDamage[4], uint8 brakesDamage[4],
-    # uint8 frontLeftWingDamage, uint8 frontRightWingDamage, uint8 rearWingDamage,
-    # uint8 floorDamage, uint8 diffuserDamage, uint8 sidepodDamage, uint8 drsFault,
-    # uint8 gearBoxDamage, uint8 engineDamage, uint8 engineMGUHWear, uint8 engineESWear,
-    # uint8 engineCEWear, uint8 engineICEWear, uint8 engineMGUKWear, uint8 engineTCWear
-    damage_format = "<4B4B4BBBBBBBBBBBBBB"
-    damage_size = struct.calcsize(damage_format) # 26 bytes per car
-    player_idx = header["playerCarIndex"]
-    offset = HEADER_SIZE + (player_idx * damage_size)
-    if len(data) < offset + damage_size:
-        return {}
-    
-    vals = struct.unpack_from(damage_format, data, offset)
-    return {
-        "tyresWear": {
-            "rl": round(vals[0], 1),
-            "rr": round(vals[1], 1),
-            "fl": round(vals[2], 1),
-            "fr": round(vals[3], 1),
+        "tyresAgeLaps": vals[19],
+        "ersStoreEnergy": round(vals[31], 0), # Max 4,000,000 Joules
+        "ersDeployMode": vals[32],
+        "damage": {
+            "tyresWear": {"rl": vals[13], "rr": vals[14], "fl": vals[15], "fr": vals[16]},
+            "frontLeftWingDamage": vals[24],
+            "frontRightWingDamage": vals[25],
+            "rearWingDamage": vals[26],
+            "engineDamage": vals[28],
+            "gearboxDamage": vals[29],
         },
-        "frontLeftWingDamage": vals[12],
-        "frontRightWingDamage": vals[13],
-        "rearWingDamage": vals[14],
-        "floorDamage": vals[15],
-        "gearboxDamage": vals[19],
-        "engineDamage": vals[20],
     }

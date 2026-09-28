@@ -16,7 +16,7 @@ echo Starting bridge...
 echo.
 
 set /p DRIVER="Enter your Driver Name (leave blank for auto-detect): "
-set /p CLOUD_URL="Enter your Vercel URL (e.g. https://f1-engineer.vercel.app or leave blank for LAN only): "
+set /p CLOUD_URL="Enter forwarding URL (e.g. http://100.78.212.123:3000 or leave blank for LAN only): "
 
 if "%DRIVER%"=="" (
     if "%CLOUD_URL%"=="" (

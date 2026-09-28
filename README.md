@@ -114,8 +114,16 @@ python relay/f1_relay.py --driver-name "Vinamra" --cloud-url https://your-app.ve
 
 *Arguments:*
 - `--driver-name "YOUR_NAME"`: Automatically finds and matches your car index from session participants.
-- `--cloud-url "https://your-app.vercel.app"`: Streams live data to your Vercel deployment.
+- `--cloud-url "https://your-app.vercel.app"`: Streams live data to any app exposing `/api/ingest` (including `http://100.78.212.123:3000`).
 - `--http-port 8080`: Local LAN server port.
+- `--data-dir "D:\F1Telemetry"`: Saves timestamped NDJSON session files to the D drive (this is the default).
+- `--save-hz 5`: Saves five telemetry snapshots per second.
+
+To forward the live packets to the requested host, run:
+```bash
+python relay/f1_relay.py --driver-name "Vinamra" --cloud-url http://100.78.212.123:3000
+```
+The target must be running this app and reachable on port `3000`. If `100.78.212.123` is the gaming PC running the relay instead, connect the viewer to `http://100.78.212.123:8080` and leave `--cloud-url` empty.
 
 ---
 
@@ -130,12 +138,7 @@ python relay/f1_relay.py --driver-name "Vinamra" --cloud-url https://your-app.ve
 
 You can test the entire pipeline without opening F1 2020:
 
-### 1. In-Browser Demo Mode
-1. In the web dashboard, click the Connection button at the top right.
-2. Select **"Interactive Bahrain GP Demo"**.
-3. Telemetry will begin playing immediately in your browser.
-
-### 2. Python UDP Packet Generator
+### Python UDP Packet Generator
 To test UDP transmission through the relay:
 ```bash
 # Terminal 1: Run Relay

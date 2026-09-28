@@ -4,10 +4,11 @@ import {
   TelemetrySnapshot,
   HandlingFeedbackId,
 } from "./types";
-import { F1_TRACKS, DEFAULT_TRACK } from "./f1_constants";
+import { buildSessionBriefing, SessionBriefing } from "./strategy";
 
 export interface EngineerAnalysis {
   radioMessage: string;
+  briefing: SessionBriefing;
   balanceScore: number; // -10 (Oversteer) to +10 (Understeer), 0 = Neutral
   balanceLabel: string;
   recommendations: SetupRecommendation[];
@@ -28,18 +29,10 @@ export function analyzeTelemetryAndGenerateSetup(
   const recommendations: SetupRecommendation[] = [];
   const diagnosedIssues: { title: string; description: string; severity: "warning" | "danger" | "info" }[] = [];
 
-  const trackId = snapshot.session.trackId ?? 3;
-  const track = F1_TRACKS[trackId] || DEFAULT_TRACK;
-  const driverName = snapshot.driverName || "Driver";
-
   // Telemetry metrics
   const innerTemps = snapshot.telemetry.tyresInnerTemperature || { fl: 100, fr: 100, rl: 100, rr: 100 };
-  const surfaceTemps = snapshot.telemetry.tyresSurfaceTemperature || { fl: 100, fr: 100, rl: 100, rr: 100 };
-  const wear = snapshot.damage.tyresWear || { fl: 0, fr: 0, rl: 0, rr: 0 };
   const frontInnerAvg = (innerTemps.fl + innerTemps.fr) / 2;
   const rearInnerAvg = (innerTemps.rl + innerTemps.rr) / 2;
-  const frontWearAvg = (wear.fl + wear.fr) / 2;
-  const rearWearAvg = (wear.rl + wear.rr) / 2;
   const oversteerCount = snapshot.diagnostics?.oversteerEvents || 0;
   const understeerCount = snapshot.diagnostics?.understeerEvents || 0;
   const frontLockCount = snapshot.diagnostics?.frontLockingEvents || 0;
@@ -388,17 +381,11 @@ export function analyzeTelemetryAndGenerateSetup(
   else if (balanceScore >= 5) balanceLabel = "Heavy Understeer";
   else if (balanceScore >= 2) balanceLabel = "Mild Understeer";
 
-  // Synthesize Race Engineer Radio Message
-  let radioMessage = "";
-  if (recommendations.length === 0) {
-    radioMessage = `Radio Check, ${driverName}. Telemetry looks consistent and car balance is in the sweet spot for ${track.name}. Keep hitting your apexes!`;
-  } else {
-    const topRec = recommendations[0];
-    radioMessage = `Box this lap, ${driverName}. We analyzed your telemetry across ${snapshot.completedLaps.length || 1} laps. We're seeing ${balanceLabel.toLowerCase()} with tyre temperatures at ${Math.round(frontInnerAvg)}°C. We recommend tweaking ${topRec.label} by ${topRec.delta > 0 ? "+" : ""}${topRec.delta} ${topRec.unit} to optimize balance for ${track.name}.`;
-  }
+  const briefing = buildSessionBriefing(snapshot, balanceLabel, recommendations[0]);
 
   return {
-    radioMessage,
+    radioMessage: briefing.radioMessage,
+    briefing,
     balanceScore: Math.max(-10, Math.min(10, balanceScore)),
     balanceLabel,
     recommendations,

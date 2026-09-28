@@ -12,13 +12,14 @@ import {
   Radio,
   Sliders,
   CheckCircle2,
-  AlertTriangle,
   ArrowRight,
   Copy,
   Check,
   Volume2,
-  Wrench,
   ShieldAlert,
+  Timer,
+  CircleDotDashed,
+  Fuel,
 } from "lucide-react";
 
 interface RaceEngineerProps {
@@ -26,13 +27,14 @@ interface RaceEngineerProps {
   onApplySetup?: (newSetup: SetupParameters) => void;
 }
 
-export function RaceEngineer({ snapshot, onApplySetup }: RaceEngineerProps) {
+export function RaceEngineer({ snapshot }: RaceEngineerProps) {
   const [selectedFeedback, setSelectedFeedback] = useState<HandlingFeedbackId[]>([]);
   const [copied, setCopied] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [activeTab, setActiveTab] = useState<"recommendations" | "full_sheet">("recommendations");
 
   const analysis = analyzeTelemetryAndGenerateSetup(snapshot, selectedFeedback);
+  const briefing = analysis.briefing;
   const driverName = snapshot.driverName || "Driver";
 
   const toggleFeedback = (id: HandlingFeedbackId) => {
@@ -103,25 +105,32 @@ Rear Left / Right: ${s.rearLeftTyrePressure} PSI
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5 shadow-2xl space-y-6">
-      {/* Race Engineer Radio Banner */}
-      <div className="bg-gradient-to-r from-cyan-950/60 via-neutral-950 to-neutral-950 border border-cyan-800/40 rounded-xl p-4 relative overflow-hidden">
-        <div className="flex items-center justify-between border-b border-cyan-800/20 pb-2 mb-3">
+      {/* Session-aware engineer briefing */}
+      <section
+        aria-labelledby="engineer-briefing-title"
+        className="bg-gradient-to-br from-cyan-950/55 via-neutral-950 to-neutral-950 border border-cyan-700/40 rounded-xl p-4 sm:p-5 relative overflow-hidden"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cyan-800/20 pb-3">
           <div className="flex items-center gap-2">
             <span className="relative flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
             </span>
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-              <Radio className="w-4 h-4" /> Pit Wall Radio Transmission
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
+              <Radio className="w-4 h-4" /> Live engineer
+            </span>
+            <span className="rounded-full border border-neutral-700 bg-neutral-900 px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wide text-neutral-200">
+              {briefing.sessionLabel}
             </span>
           </div>
 
           <button
             onClick={handleSpeakRadio}
-            className={`px-3 py-1 rounded text-xs font-mono flex items-center gap-1.5 transition-colors ${
+            aria-pressed={isSpeaking}
+            className={`min-h-9 px-3 py-1.5 rounded-md text-xs font-mono font-bold flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${
               isSpeaking
                 ? "bg-red-500/20 text-red-400 border border-red-500/50"
-                : "bg-neutral-800 hover:bg-neutral-700 text-neutral-300"
+                : "bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border border-neutral-700"
             }`}
           >
             <Volume2 className="w-3.5 h-3.5" />
@@ -129,10 +138,41 @@ Rear Left / Right: ${s.rearLeftTyrePressure} PSI
           </button>
         </div>
 
-        <p className="font-mono text-sm text-neutral-200 leading-relaxed italic">
-          &ldquo;{analysis.radioMessage}&rdquo;
-        </p>
-      </div>
+        <div className="py-4">
+          <p className="text-[10px] font-mono font-bold uppercase tracking-[0.18em] text-cyan-500">
+            Engineer priority
+          </p>
+          <h3 id="engineer-briefing-title" className="mt-1 text-xl sm:text-2xl font-black tracking-tight text-white">
+            {briefing.headline}
+          </h3>
+          <p className="mt-1.5 max-w-4xl text-sm leading-relaxed text-neutral-400">
+            {briefing.rationale}
+          </p>
+        </div>
+
+        <dl className="grid grid-cols-1 sm:grid-cols-3 border-y border-neutral-800 bg-black/25">
+          <div className="p-3.5 sm:border-r border-neutral-800">
+            <dt className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-500">
+              <Timer className="h-3.5 w-3.5 text-cyan-400" /> {briefing.pitLabel}
+            </dt>
+            <dd className="mt-1 text-sm font-bold text-white">{briefing.pitCall}</dd>
+          </div>
+          <div className="p-3.5 border-t sm:border-t-0 sm:border-r border-neutral-800">
+            <dt className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-500">
+              <CircleDotDashed className="h-3.5 w-3.5 text-amber-400" /> Tyre call
+            </dt>
+            <dd className="mt-1 text-sm font-bold text-white">{briefing.tyreCall}</dd>
+          </div>
+          <div className="p-3.5 border-t sm:border-t-0 border-neutral-800">
+            <dt className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-500">
+              <Fuel className="h-3.5 w-3.5 text-emerald-400" /> Fuel mix
+            </dt>
+            <dd className="mt-1 text-sm font-bold text-white">{briefing.fuelCall}</dd>
+          </div>
+        </dl>
+
+        <p className="sr-only" aria-live="polite">{analysis.radioMessage}</p>
+      </section>
 
       {/* Car Balance Spectrum Gauge */}
       <div className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 space-y-3">

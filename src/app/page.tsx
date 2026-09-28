@@ -1,11 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import {
-  TelemetrySnapshot,
-  SetupParameters,
-  HandlingFeedbackId,
-} from "@/lib/types";
+import React, { useState, useEffect } from "react";
+import { TelemetrySnapshot } from "@/lib/types";
 import { createDefaultSnapshot } from "@/lib/telemetry_store";
 import { LivePitWall } from "@/components/LivePitWall";
 import { TyreMatrix } from "@/components/TyreMatrix";
@@ -17,12 +13,10 @@ import {
   Wrench,
   Activity,
   Timer,
-  Settings,
   HelpCircle,
   RotateCcw,
   Wifi,
   Cloud,
-  PlayCircle,
   ExternalLink,
   CheckCircle2,
 } from "lucide-react";
@@ -33,72 +27,12 @@ export default function Home() {
   const [activeSource, setActiveSource] = useState<ConnectionSource>("cloud");
   const [lanUrl, setLanUrl] = useState("http://localhost:8080");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isConnected, setIsConnected] = useState(true);
-  const [lastPingMs, setLastPingMs] = useState(12);
-
-  const demoIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [lastPingMs, setLastPingMs] = useState(0);
+  const hasLiveTelemetry = isConnected && snapshot.timestamp > 0 && snapshot.session.sessionTypeId !== 0;
 
   // Live polling for Cloud or LAN sources
   useEffect(() => {
-    if (activeSource === "demo") {
-      // Run internal synthetic telemetry loop
-      let simSpeed = 240;
-      let simGear = 6;
-      let simThrottle = 0.8;
-      let simBrake = 0.0;
-      let simLapTime = 35.0;
-
-      demoIntervalRef.current = setInterval(() => {
-        simLapTime += 0.2;
-        if (simLapTime > 91.5) {
-          simLapTime = 0.0;
-        }
-
-        // simulate cornering vs straight
-        const isBraking = simLapTime > 25 && simLapTime < 30;
-        if (isBraking) {
-          simSpeed = Math.max(95, simSpeed - 22);
-          simGear = 3;
-          simThrottle = 0.0;
-          simBrake = 0.95;
-        } else {
-          simSpeed = Math.min(328, simSpeed + 8);
-          simGear = simSpeed > 270 ? 7 : simSpeed > 210 ? 6 : 4;
-          simThrottle = 1.0;
-          simBrake = 0.0;
-        }
-
-        setSnapshot((prev) => ({
-          ...prev,
-          telemetry: {
-            ...prev.telemetry,
-            speed: simSpeed,
-            gear: simGear,
-            throttle: simThrottle,
-            brake: simBrake,
-            engineRPM: Math.min(13400, 7000 + simSpeed * 18),
-            drs: simSpeed > 270,
-            tyresSurfaceTemperature: {
-              fl: 104 + Math.round(Math.sin(simLapTime) * 3),
-              fr: 102 + Math.round(Math.cos(simLapTime) * 2),
-              rl: 99,
-              rr: 100,
-            },
-          },
-          lapData: {
-            ...prev.lapData,
-            currentLapTime: Number(simLapTime.toFixed(3)),
-          },
-        }));
-        setIsConnected(true);
-        setLastPingMs(2);
-      }, 200);
-
-      return () => {
-        if (demoIntervalRef.current) clearInterval(demoIntervalRef.current);
-      };
-    }
-
     const interval = setInterval(async () => {
       const endpoint = activeSource === "cloud" ? "/api/live" : `${lanUrl}/api/live`;
       const t0 = performance.now();
@@ -108,7 +42,7 @@ export default function Home() {
           const data = (await res.json()) as TelemetrySnapshot;
           if (data && data.telemetry) {
             setSnapshot(data);
-            setIsConnected(true);
+            setIsConnected(data.timestamp > 0 && data.session.sessionTypeId !== 0);
             setLastPingMs(Math.round(performance.now() - t0));
           }
         } else {
@@ -173,13 +107,19 @@ export default function Home() {
                   REAL-TIME PIT WALL
                 </span>
               </div>
-              <div className="text-xs font-mono text-neutral-400 flex items-center gap-2">
-                <span>{snapshot.session.trackName}</span>
-                <span>•</span>
-                <span>{snapshot.session.weather}</span>
-                <span>•</span>
-                <span>Track {snapshot.session.trackTemperature}°C</span>
-              </div>
+              {hasLiveTelemetry ? (
+                <div className="text-xs font-mono text-neutral-400 flex items-center gap-2">
+                  <span className="text-cyan-400">{snapshot.session.sessionType}</span>
+                  <span>•</span>
+                  <span>{snapshot.session.trackName}</span>
+                  <span>•</span>
+                  <span>{snapshot.session.weather}</span>
+                  <span>•</span>
+                  <span>Track {snapshot.session.trackTemperature}°C</span>
+                </div>
+              ) : (
+                <p className="text-xs font-mono text-amber-400">Waiting for live F1 telemetry</p>
+              )}
             </div>
           </div>
 
@@ -198,13 +138,11 @@ export default function Home() {
             >
               {activeSource === "cloud" ? (
                 <Cloud className="w-3.5 h-3.5 text-cyan-400" />
-              ) : activeSource === "lan" ? (
-                <Wifi className="w-3.5 h-3.5 text-emerald-400" />
               ) : (
-                <PlayCircle className="w-3.5 h-3.5 text-purple-400" />
+                <Wifi className="w-3.5 h-3.5 text-emerald-400" />
               )}
               <span className="hidden sm:inline text-neutral-300">
-                {activeSource === "cloud" ? "Cloud Sync" : activeSource === "lan" ? "LAN Direct" : "Demo"}
+                {activeSource === "cloud" ? "Cloud Sync" : "LAN Direct"}
               </span>
               <span
                 className={`w-2 h-2 rounded-full ${
@@ -272,7 +210,7 @@ export default function Home() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
         {/* Active Driver Quick Selection Banner */}
-        <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 shadow-md">
+        {hasLiveTelemetry && <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 shadow-md">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-cyan-950 border border-cyan-800 flex items-center justify-center font-black text-cyan-400 font-mono text-base">
               {snapshot.driverName ? snapshot.driverName[0].toUpperCase() : "P"}
@@ -297,10 +235,26 @@ export default function Home() {
               participants={snapshot.participants || []}
             />
           </div>
-        </div>
+        </div>}
+
+        {!hasLiveTelemetry && activeTab !== "guide" && (
+          <section className="min-h-64 rounded-xl border border-amber-700/40 bg-neutral-950 p-8 flex flex-col items-center justify-center text-center">
+            <Wifi className="h-8 w-8 text-amber-400" />
+            <h2 className="mt-4 text-xl font-black text-white">Waiting for live telemetry</h2>
+            <p className="mt-2 max-w-xl text-sm text-neutral-400">
+              Start the local relay and open a Practice, Qualifying, or Race session. No simulated values are shown here.
+            </p>
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="mt-5 min-h-10 rounded-md border border-cyan-700 bg-cyan-950/50 px-4 text-sm font-bold text-cyan-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+            >
+              Check connection
+            </button>
+          </section>
+        )}
 
         {/* TAB 1: AI Race Engineer & Setups */}
-        {activeTab === "engineer" && (
+        {hasLiveTelemetry && activeTab === "engineer" && (
           <div className="space-y-6">
             <RaceEngineer snapshot={snapshot} />
             {/* Embedded Live Snapshot for Quick Reference */}
@@ -309,7 +263,6 @@ export default function Home() {
                 telemetry={snapshot.telemetry}
                 motion={snapshot.motion}
                 status={snapshot.status}
-                lapData={snapshot.lapData}
               />
               <TyreMatrix
                 innerTemps={snapshot.telemetry.tyresInnerTemperature}
@@ -323,13 +276,12 @@ export default function Home() {
         )}
 
         {/* TAB 2: Live Pit Wall Telemetry */}
-        {activeTab === "telemetry" && (
+        {hasLiveTelemetry && activeTab === "telemetry" && (
           <div className="space-y-6">
             <LivePitWall
               telemetry={snapshot.telemetry}
               motion={snapshot.motion}
               status={snapshot.status}
-              lapData={snapshot.lapData}
             />
             <TyreMatrix
               innerTemps={snapshot.telemetry.tyresInnerTemperature}
@@ -342,7 +294,7 @@ export default function Home() {
         )}
 
         {/* TAB 3: Lap-to-Lap Performance */}
-        {activeTab === "laps" && (
+        {hasLiveTelemetry && activeTab === "laps" && (
           <LapHistory
             completedLaps={snapshot.completedLaps}
             currentLapNum={snapshot.lapData.currentLapNum}

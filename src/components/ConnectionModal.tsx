@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { Wifi, Cloud, PlayCircle, Server, RefreshCw, CheckCircle, X } from "lucide-react";
+import { Wifi, Cloud, Server, CheckCircle, X } from "lucide-react";
 
-export type ConnectionSource = "cloud" | "lan" | "demo";
+export type ConnectionSource = "cloud" | "lan";
 
 interface ConnectionModalProps {
   isOpen: boolean;
@@ -120,25 +120,6 @@ export function ConnectionModal({
             </div>
           </div>
 
-          {/* Option 3: Offline Bahrain Simulation Demo */}
-          <div
-            onClick={() => onSelectSource("demo")}
-            className={`p-4 rounded-xl border cursor-pointer transition-all ${
-              activeSource === "demo"
-                ? "bg-purple-950/40 border-purple-500 text-white shadow-[0_0_12px_rgba(168,85,247,0.2)]"
-                : "bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-sm flex items-center gap-2">
-                <PlayCircle className="w-4 h-4 text-purple-400" /> Interactive Bahrain GP Demo
-              </span>
-              {activeSource === "demo" && <CheckCircle className="w-4 h-4 text-purple-400" />}
-            </div>
-            <p className="text-xs text-neutral-400 mt-1">
-              Plays realistic high-speed telemetry with full laps, tyre degradation, and race engineer suggestions without needing the game open.
-            </p>
-          </div>
         </div>
 
         <div className="pt-2 border-t border-neutral-800 flex justify-end">

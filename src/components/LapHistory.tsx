@@ -2,7 +2,7 @@
 
 import React from "react";
 import { LapRecord } from "@/lib/types";
-import { Timer, Zap, Gauge, AlertCircle, Award, TrendingUp } from "lucide-react";
+import { Timer, Zap, Gauge, Award, TrendingUp } from "lucide-react";
 
 interface LapHistoryProps {
   completedLaps: LapRecord[];

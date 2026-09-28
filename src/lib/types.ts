@@ -66,6 +66,7 @@ export interface SessionInfo {
   weather: string;
   weatherId?: number;
   sessionType: string;
+  sessionTypeId?: number;
   airTemperature: number;
   trackTemperature: number;
   totalLaps: number;
@@ -107,6 +108,7 @@ export interface LiveLapData {
 
 export interface LiveStatus {
   tyreCompound: string;
+  fuelMix?: number;
   fuelInTank: number;
   fuelRemainingLaps: number;
   ersStoreEnergy: number;

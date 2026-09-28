@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { User, Check, Edit2, Users, Search, X, Shield, Flag } from "lucide-react";
 import { Participant } from "@/lib/types";
-import { F1_OFFICIAL_DRIVERS, DriverRosterItem } from "@/lib/f1_constants";
+import { F1_OFFICIAL_DRIVERS } from "@/lib/f1_constants";
 
 interface DriverSelectorProps {
   currentDriverName: string;
@@ -43,10 +43,6 @@ export function DriverSelector({
       d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       d.team.toLowerCase().includes(searchQuery.toLowerCase()) ||
       d.number.toString().includes(searchQuery)
-  );
-
-  const filteredSession = participants.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
