@@ -115,6 +115,7 @@ python relay/f1_relay.py --driver-name "Vinamra" --forward-url https://your-app.
 *Arguments:*
 - `--driver-name "YOUR_NAME"`: Automatically finds and matches your car index from session participants.
 - `--forward-url "TARGET"` (also `--cloud-url`): Streams to an IP or Vercel app exposing `/api/ingest`. Repeat it, or separate URLs with commas, for multiple targets.
+- `--udp-forward "HOST:PORT"`: Forwards the original F1 UDP packets to another telemetry receiver. Repeat it, or separate targets with commas.
 - `--http-port 8080`: Local LAN server port.
 - `--data-dir "D:\F1Telemetry"`: Saves timestamped NDJSON session files to the D drive (this is the default).
 - `--save-hz 5`: Saves five telemetry snapshots per second.
@@ -124,6 +125,12 @@ To forward the same live packets to multiple ports, run:
 python relay/f1_relay.py --driver-name "Vinamra" --forward-url http://100.78.212.123:3000 --forward-url http://100.90.50.25:3000 --forward-url https://your-app.vercel.app
 ```
 Each IP or Vercel target must run this app and expose `/api/ingest`. One unreachable target does not stop the other forwarding workers. The Windows launcher accepts comma-separated targets.
+
+To keep Vercel updated while also forwarding raw telemetry to another receiver:
+
+```powershell
+python relay/f1_relay.py --driver-name "Kala Lauda" --udp-forward "100.78.202.123:20777" --forward-url "https://f12020engineer.vercel.app" --forward-hz 20 --data-dir "D:\F1Telemetry" --save-hz 5
+```
 
 ---
 

@@ -4,7 +4,7 @@ import time
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from f1_relay import ForwardingWorker
+from f1_relay import ForwardingWorker, parse_udp_targets
 
 
 class _State:
@@ -35,6 +35,12 @@ class _IngestHandler(BaseHTTPRequestHandler):
 
 
 class MultiForwardingTest(unittest.TestCase):
+    def test_parses_multiple_udp_targets(self):
+        self.assertEqual(
+            parse_udp_targets(["100.78.202.123:20777", "10.0.0.2:20777,100.78.202.123:20777"]),
+            [("100.78.202.123", 20777), ("10.0.0.2", 20777)],
+        )
+
     def test_each_target_receives_telemetry(self):
         servers = [HTTPServer(("127.0.0.1", 0), _IngestHandler) for _ in range(2)]
         workers = [

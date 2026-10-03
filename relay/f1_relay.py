@@ -6,6 +6,7 @@ tracks lap-to-lap performance, computes setup diagnostic metrics, and relays
 data in real-time to:
   1. Local Web / WebSocket clients (for direct LAN viewing on another laptop)
   2. Multiple LAN, Tailscale, or Vercel APIs (/api/ingest)
+  3. Multiple raw UDP telemetry receivers
 """
 
 import socket
@@ -451,6 +452,27 @@ class TelemetryRecorder:
     def close(self) -> None:
         self.file.close()
 
+
+def parse_udp_targets(values: List[str]) -> List[tuple[str, int]]:
+    """Parse repeatable or comma-separated HOST:PORT UDP destinations."""
+    targets = []
+    for value in values:
+        for item in value.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            try:
+                host, port_text = item.rsplit(":", 1)
+                port = int(port_text)
+            except ValueError as error:
+                raise ValueError(f"Invalid UDP target '{item}'; use HOST:PORT") from error
+            if not host or not 1 <= port <= 65535:
+                raise ValueError(f"Invalid UDP target '{item}'; use HOST:PORT")
+            target = (host, port)
+            if target not in targets:
+                targets.append(target)
+    return targets
+
 def get_lan_ip():
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -472,6 +494,12 @@ def run_f1_relay(args):
     ))
 
     try:
+        udp_targets = parse_udp_targets(args.udp_forward)
+    except ValueError as error:
+        print(f"❌ {error}")
+        return
+
+    try:
         recorder = TelemetryRecorder(state, data_dir=args.data_dir, save_hz=args.save_hz)
     except (OSError, ValueError) as error:
         print(f"❌ Cannot save telemetry to {args.data_dir}: {error}")
@@ -489,6 +517,8 @@ def run_f1_relay(args):
             print(f"🌐 Forwarding Target    : {target}")
     else:
         print("🌐 Forwarding Targets   : [Not configured - pass --forward-url to sync]")
+    for host, port in udp_targets:
+        print(f"📤 Raw UDP Target       : {host}:{port}")
     print(f"💾 Session Data File    : {recorder.file_path}")
     print("-" * 70)
     print("💡 To connect from your other laptop:")
@@ -506,6 +536,7 @@ def run_f1_relay(args):
     
     # Open UDP Socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_forward_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         sock.bind((args.bind_ip, args.udp_port))
         print(f"✅ Listening for F1 2020 UDP packets on {args.bind_ip}:{args.udp_port}...\n")
@@ -514,6 +545,7 @@ def run_f1_relay(args):
         print("   Make sure no other telemetry application is using port 20777.")
         recorder.close()
         sock.close()
+        udp_forward_socket.close()
         return
     
     packet_count = 0
@@ -524,6 +556,12 @@ def run_f1_relay(args):
             data, addr = sock.recvfrom(2048)
             if len(data) < 24:
                 continue
+
+            for target in udp_targets:
+                try:
+                    udp_forward_socket.sendto(data, target)
+                except OSError:
+                    pass
             
             packet_count += 1
             packet_processed = False
@@ -606,6 +644,7 @@ def run_f1_relay(args):
         print("\n🛑 Telemetry relay stopped by user.")
     finally:
         sock.close()
+        udp_forward_socket.close()
         recorder.close()
 
 if __name__ == "__main__":
@@ -623,6 +662,13 @@ if __name__ == "__main__":
         help="IP or Vercel target; repeat the flag or use comma-separated URLs for multiple targets",
     )
     parser.add_argument("--forward-hz", "--cloud-hz", dest="forward_hz", type=float, default=5.0, help="Forwarding rate in Hz (default: 5.0)")
+    parser.add_argument(
+        "--udp-forward",
+        action="append",
+        default=[],
+        metavar="HOST:PORT",
+        help="Raw UDP destination; repeat the flag or use comma-separated targets",
+    )
     parser.add_argument("--data-dir", type=str, default=r"D:\F1Telemetry", help=r"Directory for saved telemetry (default: D:\F1Telemetry)")
     parser.add_argument("--save-hz", type=float, default=5.0, help="Disk save rate in Hz (default: 5.0)")
     args = parser.parse_args()
