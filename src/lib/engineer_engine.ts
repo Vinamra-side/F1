@@ -33,8 +33,8 @@ export function analyzeTelemetryAndGenerateSetup(
   const innerTemps = snapshot.telemetry.tyresInnerTemperature || { fl: 100, fr: 100, rl: 100, rr: 100 };
   const frontInnerAvg = (innerTemps.fl + innerTemps.fr) / 2;
   const rearInnerAvg = (innerTemps.rl + innerTemps.rr) / 2;
-  const oversteerCount = snapshot.diagnostics?.oversteerEvents || 0;
-  const understeerCount = snapshot.diagnostics?.understeerEvents || 0;
+  const oversteerCount = snapshot.completedLaps.reduce((total, lap) => total + (lap.oversteerEvents || 0), snapshot.diagnostics?.oversteerEvents || 0);
+  const understeerCount = snapshot.completedLaps.reduce((total, lap) => total + (lap.understeerEvents || 0), snapshot.diagnostics?.understeerEvents || 0);
   const frontLockCount = snapshot.diagnostics?.frontLockingEvents || 0;
   const kerbHits = snapshot.diagnostics?.kerbBottomingEvents || 0;
 

@@ -4,7 +4,7 @@ import time
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-from f1_relay import ForwardingWorker, parse_udp_targets
+from f1_relay import ForwardingWorker, TelemetryState, parse_udp_targets
 
 
 class _State:
@@ -35,6 +35,18 @@ class _IngestHandler(BaseHTTPRequestHandler):
 
 
 class MultiForwardingTest(unittest.TestCase):
+    def test_invalid_lap_diagnostics_remain_available_for_setup_analysis(self):
+        state = TelemetryState()
+        state.oversteer_events = 4
+        state.understeer_events = 2
+
+        state._record_completed_lap(1, 90.0, {"isCurrentLapInvalid": True})
+        snapshot = state.snapshot()
+
+        self.assertFalse(snapshot["completedLaps"][0]["isValid"])
+        self.assertEqual(snapshot["completedLaps"][0]["oversteerEvents"], 4)
+        self.assertEqual(snapshot["completedLaps"][0]["understeerEvents"], 2)
+
     def test_parses_multiple_udp_targets(self):
         self.assertEqual(
             parse_udp_targets(["100.78.202.123:20777", "10.0.0.2:20777,100.78.202.123:20777"]),
