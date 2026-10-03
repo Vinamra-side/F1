@@ -105,25 +105,25 @@ Double-click:
 ```
 relay/run_relay.bat
 ```
-Enter your Driver Name (e.g. `Vinamra`) and your Vercel URL.
+Enter your Driver Name (e.g. `Vinamra`) and one or more forwarding URLs.
 
 #### Option B: Terminal Command
 ```bash
-python relay/f1_relay.py --driver-name "Vinamra" --cloud-url https://your-app.vercel.app
+python relay/f1_relay.py --driver-name "Vinamra" --forward-url https://your-app.vercel.app
 ```
 
 *Arguments:*
 - `--driver-name "YOUR_NAME"`: Automatically finds and matches your car index from session participants.
-- `--cloud-url "https://your-app.vercel.app"`: Streams live data to any app exposing `/api/ingest` (including `http://100.78.212.123:3000`).
+- `--forward-url "TARGET"` (also `--cloud-url`): Streams to an IP or Vercel app exposing `/api/ingest`. Repeat it, or separate URLs with commas, for multiple targets.
 - `--http-port 8080`: Local LAN server port.
 - `--data-dir "D:\F1Telemetry"`: Saves timestamped NDJSON session files to the D drive (this is the default).
 - `--save-hz 5`: Saves five telemetry snapshots per second.
 
-To forward the live packets to the requested host, run:
+To forward the same live packets to multiple ports, run:
 ```bash
-python relay/f1_relay.py --driver-name "Vinamra" --cloud-url http://100.78.212.123:3000
+python relay/f1_relay.py --driver-name "Vinamra" --forward-url http://100.78.212.123:3000 --forward-url http://100.90.50.25:3000 --forward-url https://your-app.vercel.app
 ```
-The target must be running this app and reachable on port `3000`. If `100.78.212.123` is the gaming PC running the relay instead, connect the viewer to `http://100.78.212.123:8080` and leave `--cloud-url` empty.
+Each IP or Vercel target must run this app and expose `/api/ingest`. One unreachable target does not stop the other forwarding workers. The Windows launcher accepts comma-separated targets.
 
 ---
 

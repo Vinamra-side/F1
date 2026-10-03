@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-F1 2020 UDP Telemetry Relay & Cloud Sync Bridge
+F1 2020 UDP Telemetry Relay & Multi-Target Forwarding Bridge
 Receives UDP packets from Codemasters F1 2020 (port 20777), processes telemetry,
 tracks lap-to-lap performance, computes setup diagnostic metrics, and relays
 data in real-time to:
   1. Local Web / WebSocket clients (for direct LAN viewing on another laptop)
-  2. Vercel Cloud API (/api/ingest) for remote viewing over the internet
+  2. Multiple LAN, Tailscale, or Vercel APIs (/api/ingest)
 """
 
 import socket
@@ -19,6 +19,9 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 from typing import Dict, Any, List, Optional
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="replace")
 
 from packet_parser import (
     parse_header,
@@ -378,24 +381,24 @@ class LocalHttpServer:
         except Exception as e:
             print(f"⚠️ [LAN Bridge] Could not start local server on {self.port}: {e}")
 
-class CloudSyncWorker:
-    """Syncs telemetry snapshots to Vercel cloud deployment"""
-    def __init__(self, state: TelemetryState, cloud_url: str, sync_hz: float = 4.0):
+class ForwardingWorker:
+    """Sends telemetry snapshots to one remote ingest endpoint."""
+    def __init__(self, state: TelemetryState, target_url: str, sync_hz: float = 4.0):
         self.state = state
-        self.cloud_url = cloud_url.rstrip("/")
+        self.target_url = target_url.rstrip("/")
         self.interval = 1.0 / sync_hz
         self.running = True
         self.last_status_code = None
 
     def start(self):
-        if not self.cloud_url:
+        if not self.target_url:
             return
         thread = threading.Thread(target=self._run, daemon=True)
         thread.start()
-        print(f"☁️ [Cloud Sync] Forwarding live telemetry to {self.cloud_url}/api/ingest @ {1.0/self.interval:.0f}Hz")
+        print(f"☁️ [Forward] {self.target_url}/api/ingest @ {1.0/self.interval:.0f}Hz")
 
     def _run(self):
-        ingest_endpoint = f"{self.cloud_url}/api/ingest"
+        ingest_endpoint = f"{self.target_url}/api/ingest"
         while self.running:
             time.sleep(self.interval)
             try:
@@ -461,6 +464,12 @@ def get_lan_ip():
 def run_f1_relay(args):
     state = TelemetryState(target_driver_name=args.driver_name)
     lan_ip = get_lan_ip()
+    forward_urls = list(dict.fromkeys(
+        url.strip()
+        for value in args.forward_urls
+        for url in value.split(",")
+        if url.strip()
+    ))
 
     try:
         recorder = TelemetryRecorder(state, data_dir=args.data_dir, save_hz=args.save_hz)
@@ -475,25 +484,25 @@ def run_f1_relay(args):
     print(f"📥 UDP Listener Port   : {args.udp_port} (Codemasters F1 2020 format)")
     print(f"💻 Your Gaming PC IP   : {lan_ip}")
     print(f"🔗 LAN Access for Laptop: http://{lan_ip}:{args.http_port}/api/live")
-    if args.cloud_url:
-        print(f"🌐 Cloud Vercel Target  : {args.cloud_url}")
+    if forward_urls:
+        for target in forward_urls:
+            print(f"🌐 Forwarding Target    : {target}")
     else:
-        print("🌐 Cloud Vercel Target  : [Not configured - pass --cloud-url to sync]")
+        print("🌐 Forwarding Targets   : [Not configured - pass --forward-url to sync]")
     print(f"💾 Session Data File    : {recorder.file_path}")
     print("-" * 70)
     print("💡 To connect from your other laptop:")
     print(f"   Option A (LAN): Enter 'http://{lan_ip}:{args.http_port}' in the web app settings.")
-    print("   Option B (Vercel): Deploy the web app and launch with --cloud-url https://your-app.vercel.app")
+    print("   Option B (Remote): Repeat --forward-url for IP and Vercel targets")
     print("=" * 70)
     
     # Start LAN HTTP server
     local_server = LocalHttpServer(state, host="0.0.0.0", port=args.http_port)
     local_server.start()
     
-    # Start Cloud sync worker if URL provided
-    if args.cloud_url:
-        cloud_worker = CloudSyncWorker(state, cloud_url=args.cloud_url, sync_hz=args.cloud_hz)
-        cloud_worker.start()
+    # Start one forwarding worker per destination.
+    for target in forward_urls:
+        ForwardingWorker(state, target_url=target, sync_hz=args.forward_hz).start()
     
     # Open UDP Socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -600,13 +609,20 @@ def run_f1_relay(args):
         recorder.close()
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="F1 2020 UDP Telemetry Relay to LAN and Vercel Cloud")
+    parser = argparse.ArgumentParser(description="F1 2020 UDP Telemetry Relay with multi-IP and Vercel forwarding")
     parser.add_argument("--udp-port", type=int, default=20777, help="F1 2020 UDP port (default: 20777)")
     parser.add_argument("--bind-ip", type=str, default="0.0.0.0", help="UDP bind IP (default: 0.0.0.0)")
     parser.add_argument("--http-port", type=int, default=8080, help="Local LAN HTTP server port (default: 8080)")
     parser.add_argument("--driver-name", type=str, default=None, help="Player / Driver name to track and match")
-    parser.add_argument("--cloud-url", type=str, default=None, help="Vercel cloud deployment URL (e.g. https://my-f1-app.vercel.app)")
-    parser.add_argument("--cloud-hz", type=float, default=5.0, help="Cloud sync rate in Hz (default: 5.0)")
+    parser.add_argument(
+        "--forward-url",
+        "--cloud-url",
+        dest="forward_urls",
+        action="append",
+        default=[],
+        help="IP or Vercel target; repeat the flag or use comma-separated URLs for multiple targets",
+    )
+    parser.add_argument("--forward-hz", "--cloud-hz", dest="forward_hz", type=float, default=5.0, help="Forwarding rate in Hz (default: 5.0)")
     parser.add_argument("--data-dir", type=str, default=r"D:\F1Telemetry", help=r"Directory for saved telemetry (default: D:\F1Telemetry)")
     parser.add_argument("--save-hz", type=float, default=5.0, help="Disk save rate in Hz (default: 5.0)")
     args = parser.parse_args()
