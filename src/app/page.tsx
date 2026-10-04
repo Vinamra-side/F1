@@ -7,6 +7,7 @@ import { LivePitWall } from "@/components/LivePitWall";
 import { TyreMatrix } from "@/components/TyreMatrix";
 import { LapHistory } from "@/components/LapHistory";
 import { RaceEngineer } from "@/components/RaceEngineer";
+import { PitWallOverview } from "@/components/PitWallOverview";
 import { ConnectionModal, ConnectionSource } from "@/components/ConnectionModal";
 import { DriverSelector } from "@/components/DriverSelector";
 import {
@@ -23,13 +24,15 @@ import {
 
 export default function Home() {
   const [snapshot, setSnapshot] = useState<TelemetrySnapshot>(() => createDefaultSnapshot("Vinamra"));
-  const [activeTab, setActiveTab] = useState<"engineer" | "telemetry" | "laps" | "guide">("engineer");
+  const [activeTab, setActiveTab] = useState<"engineer" | "telemetry" | "laps" | "guide">("telemetry");
+  const [telemetryView, setTelemetryView] = useState<"compact" | "classic">("compact");
   const [activeSource, setActiveSource] = useState<ConnectionSource>("cloud");
   const [lanUrl, setLanUrl] = useState("http://localhost:8080");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [lastPingMs, setLastPingMs] = useState(0);
   const hasLiveTelemetry = isConnected && snapshot.timestamp > 0 && snapshot.session.sessionTypeId !== 0;
+  const compactTelemetry = activeTab === "telemetry" && telemetryView === "compact";
 
   // Live polling for Cloud or LAN sources
   useEffect(() => {
@@ -88,8 +91,21 @@ export default function Home() {
     }
   };
 
+  const classicTelemetry = (
+    <div className="space-y-6">
+      <LivePitWall telemetry={snapshot.telemetry} motion={snapshot.motion} status={snapshot.status} />
+      <TyreMatrix
+        innerTemps={snapshot.telemetry.tyresInnerTemperature}
+        surfaceTemps={snapshot.telemetry.tyresSurfaceTemperature}
+        brakesTemp={snapshot.telemetry.brakesTemperature}
+        tyresPressure={snapshot.telemetry.tyresPressure}
+        tyreWear={snapshot.damage.tyresWear}
+      />
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-black text-neutral-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black">
+    <div className={`${compactTelemetry ? "pit-wall-page" : "min-h-screen"} bg-black text-neutral-100 flex flex-col font-sans selection:bg-cyan-500 selection:text-black`}>
       {/* Top Navigation Bar */}
       <header className="border-b border-neutral-800 bg-neutral-950/80 backdrop-blur sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
@@ -204,13 +220,33 @@ export default function Home() {
           >
             <HelpCircle className="w-4 h-4" /> Relay Setup & Vercel Guide
           </button>
+          {activeTab === "telemetry" && (
+            <div className="ml-auto flex shrink-0 items-center gap-1 pl-4" role="group" aria-label="Telemetry layout">
+              <button
+                type="button"
+                onClick={() => setTelemetryView("compact")}
+                aria-pressed={telemetryView === "compact"}
+                className={`rounded px-2 py-1 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${telemetryView === "compact" ? "bg-cyan-950 text-cyan-300" : "text-neutral-400 hover:text-white"}`}
+              >
+                Compact
+              </button>
+              <button
+                type="button"
+                onClick={() => setTelemetryView("classic")}
+                aria-pressed={telemetryView === "classic"}
+                className={`rounded px-2 py-1 font-mono text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 ${telemetryView === "classic" ? "bg-cyan-950 text-cyan-300" : "text-neutral-400 hover:text-white"}`}
+              >
+                Classic
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 space-y-6">
+      <main className={`${compactTelemetry ? "pit-wall-main" : "p-4 sm:p-6 space-y-6"} flex-1 max-w-7xl w-full mx-auto`}>
         {/* Active Driver Quick Selection Banner */}
-        {hasLiveTelemetry && <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 shadow-md">
+        {hasLiveTelemetry && !compactTelemetry && <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 shadow-md">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-cyan-950 border border-cyan-800 flex items-center justify-center font-black text-cyan-400 font-mono text-base">
               {snapshot.driverName ? snapshot.driverName[0].toUpperCase() : "P"}
@@ -254,44 +290,11 @@ export default function Home() {
         )}
 
         {/* TAB 1: AI Race Engineer & Setups */}
-        {hasLiveTelemetry && activeTab === "engineer" && (
-          <div className="space-y-6">
-            <RaceEngineer snapshot={snapshot} />
-            {/* Embedded Live Snapshot for Quick Reference */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <LivePitWall
-                telemetry={snapshot.telemetry}
-                motion={snapshot.motion}
-                status={snapshot.status}
-              />
-              <TyreMatrix
-                innerTemps={snapshot.telemetry.tyresInnerTemperature}
-                surfaceTemps={snapshot.telemetry.tyresSurfaceTemperature}
-                brakesTemp={snapshot.telemetry.brakesTemperature}
-                tyresPressure={snapshot.telemetry.tyresPressure}
-                tyreWear={snapshot.damage.tyresWear}
-              />
-            </div>
-          </div>
-        )}
+        {hasLiveTelemetry && activeTab === "engineer" && <RaceEngineer snapshot={snapshot} />}
 
         {/* TAB 2: Live Pit Wall Telemetry */}
-        {hasLiveTelemetry && activeTab === "telemetry" && (
-          <div className="space-y-6">
-            <LivePitWall
-              telemetry={snapshot.telemetry}
-              motion={snapshot.motion}
-              status={snapshot.status}
-            />
-            <TyreMatrix
-              innerTemps={snapshot.telemetry.tyresInnerTemperature}
-              surfaceTemps={snapshot.telemetry.tyresSurfaceTemperature}
-              brakesTemp={snapshot.telemetry.brakesTemperature}
-              tyresPressure={snapshot.telemetry.tyresPressure}
-              tyreWear={snapshot.damage.tyresWear}
-            />
-          </div>
-        )}
+        {hasLiveTelemetry && compactTelemetry && <PitWallOverview snapshot={snapshot} />}
+        {hasLiveTelemetry && activeTab === "telemetry" && telemetryView === "classic" && classicTelemetry}
 
         {/* TAB 3: Lap-to-Lap Performance */}
         {hasLiveTelemetry && activeTab === "laps" && (
@@ -386,7 +389,7 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-neutral-900 bg-neutral-950 py-4 px-6 text-center text-xs font-mono text-neutral-500">
+      <footer className={`${compactTelemetry ? "hidden" : ""} border-t border-neutral-900 bg-neutral-950 py-4 px-6 text-center text-xs font-mono text-neutral-500`}>
         F1 2020 Race Engineer & Telemetry Bridge • Codemasters F1 2020 UDP 20777 • Ready for Vercel Deployment
       </footer>
 

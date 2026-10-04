@@ -112,6 +112,7 @@ export interface LiveStatus {
   fuelInTank: number;
   fuelRemainingLaps: number;
   ersStoreEnergy: number;
+  ersDeployMode?: number;
   drsAllowed: boolean;
   tyresAgeLaps?: number;
 }
